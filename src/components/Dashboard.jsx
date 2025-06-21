@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+// src/components/Dashboard.jsx
+import React, { useEffect, useState, useRef } from "react";
 import { getProducts } from "../utils/localStorage";
 import { Line } from "react-chartjs-2";
 import {
@@ -11,11 +12,15 @@ import {
   Legend,
   Filler,
 } from "chart.js";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+
 ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement, Tooltip, Legend, Filler);
 
 export default function Dashboard() {
   const [products, setProducts] = useState([]);
   const [salesByMonth, setSalesByMonth] = useState({});
+  const dashboardRef = useRef();
 
   useEffect(() => {
     const data = getProducts();
@@ -73,11 +78,32 @@ export default function Dashboard() {
     ],
   };
 
+  const exportToPDF = () => {
+    html2canvas(dashboardRef.current).then((canvas) => {
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("p", "mm", "a4");
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save("dashboard.pdf");
+    });
+  };
+
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
+    <div className="min-h-screen bg-gray-900 text-white p-8" ref={dashboardRef}>
       <h1 className="text-5xl font-extrabold text-center mb-12 bg-gradient-to-r from-indigo-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">
         📊 Inventory Dashboard
       </h1>
+
+      <div className="flex justify-end mb-6">
+        <button
+          onClick={exportToPDF}
+          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded shadow"
+        >
+          Download PDF
+        </button>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-12">
         {[["Today", sumRevenue(today)], ["This Week", sumRevenue(lastWeek)], ["This Month", sumRevenue(lastMonth)]].map(([label, value]) => (

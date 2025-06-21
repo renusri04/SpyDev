@@ -38,6 +38,31 @@ export default function Inventory() {
 
   const sortedProducts = sortProducts(filteredProducts);
   const uniqueCategories = [...new Set(products.map((p) => p.category))];
+  const exportToCSV = (data, filename = "inventory.csv") => {
+  if (!data || data.length === 0) return;
+
+  const headers = Object.keys(data[0]);
+  const csvRows = [headers.join(",")];
+
+  data.forEach((row) => {
+    const values = headers.map((header) => {
+      const val = row[header] ?? "";
+      return `"${val.toString().replace(/"/g, '""')}"`; // Escape quotes
+    });
+    csvRows.push(values.join(","));
+  });
+
+  const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+
+  URL.revokeObjectURL(url);
+};
+
 
   return (
     <div className="p-6 min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
@@ -46,11 +71,7 @@ export default function Inventory() {
       </h1>
 
       <div className="flex flex-wrap gap-4 mb-6">
-        <select
-          value={sortField}
-          onChange={(e) => setSortField(e.target.value)}
-          className="bg-gray-800 text-white px-4 py-2 rounded-md border border-gray-600 shadow"
-        >
+        <select value={sortField} onChange={(e) => setSortField(e.target.value)} className="bg-gray-800 text-white px-4 py-2 rounded-md border border-gray-600 shadow">
           <option value="">Sort By</option>
           <option value="name">Name</option>
           <option value="price">Original Price</option>
@@ -59,19 +80,22 @@ export default function Inventory() {
           <option value="category">Category</option>
         </select>
 
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="bg-gray-800 text-white px-4 py-2 rounded-md border border-gray-600 shadow"
-        >
+        <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="bg-gray-800 text-white px-4 py-2 rounded-md border border-gray-600 shadow">
           <option value="">Filter by Category</option>
           {uniqueCategories.map((cat) => (
-            <option key={cat} value={cat}>
-              {cat}
-            </option>
+            <option key={cat} value={cat}>{cat}</option>
           ))}
         </select>
       </div>
+      {sortedProducts.length > 0 && (
+  <button
+    onClick={() => exportToCSV(sortedProducts)}
+    className="mb-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow"
+  >
+    Export as CSV
+  </button>
+)}
+
 
       {sortedProducts.length === 0 ? (
         <p className="text-gray-400">No products available.</p>
@@ -98,19 +122,12 @@ export default function Inventory() {
                   <td className="px-6 py-4">{product.category || "N/A"}</td>
                   <td className="px-6 py-4">₹{product.price}</td>
                   <td className="px-6 py-4">{product.discount ?? 0}%</td>
-                  <td className="px-6 py-4 font-medium text-green-400">
-                    ₹{product.finalPrice ?? product.price}
-                  </td>
+                  <td className="px-6 py-4 font-medium text-green-400">₹{product.finalPrice ?? product.price}</td>
                   <td className="px-6 py-4">{product.quantity}</td>
                   <td className="px-6 py-4">{product.date}</td>
                   <td className="px-6 py-4">{product.description || "N/A"}</td>
                   <td className="px-6 py-4 text-center">
-                    <button
-                      onClick={() => deleteProduct(index)}
-                      className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded-md text-white text-xs"
-                    >
-                      Delete
-                    </button>
+                    <button onClick={() => deleteProduct(index)} className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded-md text-white text-xs">Delete</button>
                   </td>
                 </tr>
               ))}

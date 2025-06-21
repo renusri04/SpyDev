@@ -1,81 +1,56 @@
+// src/pages/AddInventory.jsx
 import React, { useState } from "react";
-import { saveManualProduct, saveCSVProducts } from "../utils/localStorage";
+import { useLocation } from "react-router-dom";
 import Papa from "papaparse";
-import { useNavigate } from "react-router-dom";
 
-const CATEGORIES = ["Grocery", "Personal Care", "Clothing", "Electronics", "Other"];
+const AddInventory = () => {
+  const location = useLocation();
+  const mode = new URLSearchParams(location.search).get("mode");
+  const [error, setError] = useState(null);
 
-export default function AddInventory() {
-  const [form, setForm] = useState({
+  const [manualEntry, setManualEntry] = useState({
     name: "",
-    sku: "",
+    category: "",
     price: "",
     quantity: "",
     discount: "",
-    category: "Grocery",
-    otherCategory: "",
     date: "",
     description: "",
   });
-  const [csvData, setCSVData] = useState(null);
-  const navigate = useNavigate();
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm((f) => ({ ...f, [name]: value }));
+  const saveToLocalStorage = (products) => {
+    localStorage.setItem("products", JSON.stringify(products));
   };
 
-  const validateForm = () => {
-    if (!form.name || !form.price || !form.quantity || !form.date) {
-      alert("❗ Name, price, quantity and date are required.");
-      return false;
-    }
-    if (form.category === "Other" && !form.otherCategory.trim()) {
-      alert("❗ Specify category when choosing 'Other'.");
-      return false;
-    }
-    return true;
-  };
-
-  const calculateFinalPrice = (price, discount) => {
-    const p = parseFloat(price);
-    const d = parseFloat(discount);
-    if (!d || isNaN(d)) return p;
-    return +(p - (p * d) / 100).toFixed(2);
+  const getExistingProducts = () => {
+    return JSON.parse(localStorage.getItem("products") || "[]");
   };
 
   const handleManualSubmit = (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    const finalPrice =
+      manualEntry.price - (manualEntry.price * (manualEntry.discount ?? 0)) / 100;
 
-    const finalPrice = calculateFinalPrice(form.price, form.discount);
-
-    const product = {
-      name: form.name,
-      sku: form.sku?.trim() || undefined,
-      price: +form.price,
-      quantity: +form.quantity,
-      discount: form.discount ? +form.discount : 0,
-      finalPrice,
-      category: form.category !== "Other" ? form.category : form.otherCategory.trim(),
-      date: form.date,
-      description: form.description,
+    const newProduct = {
+      ...manualEntry,
+      price: parseFloat(manualEntry.price),
+      discount: parseFloat(manualEntry.discount),
+      finalPrice: parseFloat(finalPrice.toFixed(2)),
     };
 
-    saveManualProduct(product);
-    alert("✅ Product added");
-    setForm({
+    const updated = [...getExistingProducts(), newProduct];
+    saveToLocalStorage(updated);
+
+    setManualEntry({
       name: "",
-      sku: "",
+      category: "",
       price: "",
       quantity: "",
       discount: "",
-      category: "Grocery",
-      otherCategory: "",
       date: "",
       description: "",
     });
-    navigate("/inventory");
+    setError(null);
   };
 
   const handleCSVUpload = (e) => {
@@ -85,119 +60,56 @@ export default function AddInventory() {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      complete: ({ data, meta }) => {
-        const req = ["name", "quantity", "date", "category", "price"];
-        for (let col of req) {
-          if (!meta.fields.includes(col)) {
-            alert(`❌ Missing column "${col}".`);
-            return;
-          }
-        }
-
-        const formatted = data.map((row) => {
-          const discount = row.discount ? +row.discount : 0;
-          const price = +row.price;
-          const finalPrice = calculateFinalPrice(price, discount);
-
+      complete: (results) => {
+        const parsed = results.data.map((item) => {
+          const price = parseFloat(item.price || 0);
+          const discount = parseFloat(item.discount || 0);
+          const finalPrice = price - (price * discount) / 100;
           return {
-            name: row.name,
-            sku: row.sku?.trim() || undefined,
-            quantity: +row.quantity,
+            ...item,
             price,
             discount,
-            finalPrice,
-            category: CATEGORIES.slice(0, 4).includes(row.category) ? row.category : "Other",
-            date: row.date,
-            description: row.description || "",
+            finalPrice: parseFloat(finalPrice.toFixed(2)),
           };
         });
 
-        setCSVData(formatted);
-        alert("✅ CSV ready: click import to save");
+        const updated = [...getExistingProducts(), ...parsed];
+        saveToLocalStorage(updated);
+        setError(null);
       },
-      error: (err) => alert("❌ CSV error: " + err.message),
+      error: (err) => {
+        console.error(err);
+        setError("Failed to parse CSV");
+      },
     });
   };
 
-  const handleCSVSave = () => {
-    saveCSVProducts(csvData);
-    alert("✅ Products imported");
-    setCSVData(null);
-    navigate("/inventory");
-  };
-
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
-      <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent mb-6">
-        ➕ Add Inventory
-      </h1>
+    <div className="p-6 max-w-4xl mx-auto bg-white shadow rounded">
+      <h2 className="text-2xl font-bold mb-6">Add Inventory - {mode === "csv" ? "CSV Upload" : "Manual Entry"}</h2>
 
-      <form onSubmit={handleManualSubmit} className="max-w-lg mx-auto bg-gray-800 p-6 rounded-lg shadow space-y-4">
-        {["name", "price", "quantity", "date"].map((k) => (
-          <div key={k}>
-            <label className="block mb-1 capitalize">{k}</label>
-            <input
-              name={k}
-              type={k === "date" ? "date" : k === "quantity" || k === "price" ? "number" : "text"}
-              value={form[k]}
-              onChange={handleChange}
-              className="w-full p-2 bg-gray-700 rounded border border-gray-600"
-              required
-            />
-          </div>
-        ))}
+      {mode === "manual" && (
+        <form onSubmit={handleManualSubmit} className="grid grid-cols-2 gap-4">
+          <input type="text" placeholder="Name" value={manualEntry.name} onChange={(e) => setManualEntry({ ...manualEntry, name: e.target.value })} className="border px-3 py-2 rounded" required />
+          <input type="text" placeholder="Category" value={manualEntry.category} onChange={(e) => setManualEntry({ ...manualEntry, category: e.target.value })} className="border px-3 py-2 rounded" required />
+          <input type="number" placeholder="Price" value={manualEntry.price} onChange={(e) => setManualEntry({ ...manualEntry, price: e.target.value })} className="border px-3 py-2 rounded" required />
+          <input type="number" placeholder="Discount %" value={manualEntry.discount} onChange={(e) => setManualEntry({ ...manualEntry, discount: e.target.value })} className="border px-3 py-2 rounded" />
+          <input type="number" placeholder="Quantity" value={manualEntry.quantity} onChange={(e) => setManualEntry({ ...manualEntry, quantity: e.target.value })} className="border px-3 py-2 rounded" required />
+          <input type="date" placeholder="Date" value={manualEntry.date} onChange={(e) => setManualEntry({ ...manualEntry, date: e.target.value })} className="border px-3 py-2 rounded" />
+          <input type="text" placeholder="Description" value={manualEntry.description} onChange={(e) => setManualEntry({ ...manualEntry, description: e.target.value })} className="col-span-2 border px-3 py-2 rounded" />
+          <button type="submit" className="col-span-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded">Add Product</button>
+        </form>
+      )}
 
-        <div>
-          <label className="block mb-1">SKU (optional)</label>
-          <input name="sku" value={form.sku} onChange={handleChange}
-            className="w-full p-2 bg-gray-700 rounded border border-gray-600" />
+      {mode === "csv" && (
+        <div className="space-y-4">
+          <input type="file" accept=".csv" onChange={handleCSVUpload} className="border px-4 py-2 rounded" />
+          {error && <p className="text-red-500">{error}</p>}
+          <p className="text-sm text-gray-600">Upload a CSV with headers like: name, category, price, discount, quantity, date, description</p>
         </div>
-
-        <div>
-          <label className="block mb-1">Discount % (optional)</label>
-          <input name="discount" type="number" value={form.discount} onChange={handleChange}
-            className="w-full p-2 bg-gray-700 rounded border border-gray-600" />
-        </div>
-
-        <div>
-          <label className="block mb-1">Description (optional)</label>
-          <input name="description" value={form.description} onChange={handleChange}
-            className="w-full p-2 bg-gray-700 rounded border border-gray-600" />
-        </div>
-
-        <div>
-          <label className="block mb-1">Category *</label>
-          <select name="category" value={form.category} onChange={handleChange}
-            className="w-full p-2 bg-gray-700 rounded border border-gray-600">
-            {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-
-        {form.category === "Other" && (
-          <div>
-            <label className="block mb-1">Specify "Other"</label>
-            <input name="otherCategory" value={form.otherCategory} onChange={handleChange}
-              className="w-full p-2 bg-gray-700 rounded border border-gray-600" required />
-          </div>
-        )}
-
-        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded">✅ Add Product</button>
-      </form>
-
-      {/* CSV Upload Section */}
-      <div className="mt-12 max-w-lg mx-auto bg-gray-800 p-6 rounded-lg shadow space-y-4">
-        <h2 className="text-xl font-semibold">📄 Upload CSV</h2>
-        <p className="text-gray-400 text-sm">
-          Required: <strong>name, quantity, date, category, price</strong>. Optional: sku, discount, description.
-        </p>
-        <input type="file" accept=".csv" onChange={handleCSVUpload}
-          className="w-full p-2 bg-gray-700 rounded border border-gray-600" />
-        {csvData && (
-          <button onClick={handleCSVSave} className="w-full bg-green-600 hover:bg-green-700 py-2 rounded">
-            ✅ Import CSV
-          </button>
-        )}
-      </div>
+      )}
     </div>
   );
-}
+};
+
+export default AddInventory;
