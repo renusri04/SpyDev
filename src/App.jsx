@@ -7,10 +7,13 @@ import Inventory from "./components/Inventory";
 import Auth from "./components/Auth";
 import Header from "./components/Header";
 import AddInventory from "./pages/AddInventory";
-
+import Footer from './components/Footer'
+import { useAuth } from "./contexts/authContext";
+import { Navigate } from "react-router-dom";
 const App = () => {
   const [showModal, setShowModal] = useState(false);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const openAddInventoryModal = () => setShowModal(true);
   const closeAddInventoryModal = () => setShowModal(false);
@@ -21,12 +24,12 @@ const App = () => {
 
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/inventory" element={<Inventory />} />
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/add-inventory" element={<AddInventory />} />
+  <Route path="/dashboard" element={user ? <Dashboard /> : <Navigate to="/auth" />} />
+  <Route path="/inventory" element={user ? <Inventory /> : <Navigate to="/auth" />} />
+  <Route path="/auth" element={<Auth />} />
+  <Route path="/add-inventory" element={user ? <AddInventory /> : <Navigate to="/auth" />} />
       </Routes>
-
+      <Footer />
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-8 shadow-xl w-[320px] text-center">
