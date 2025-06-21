@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useAuth } from "../contexts/authContext";
 import { saveManualProduct, saveCSVProducts } from "../utils/localStorage";
 import Papa from "papaparse";
 import { useNavigate } from "react-router-dom";
@@ -7,18 +8,14 @@ const CATEGORIES = ["Grocery", "Personal Care", "Clothing", "Electronics", "Othe
 
 export default function AddInventory() {
   const [form, setForm] = useState({
-    name: "",
-    sku: "",
-    price: "",
-    quantity: "",
-    discount: "",
-    category: "Grocery",
-    otherCategory: "",
-    date: "",
-    description: "",
+    name: "", sku: "", quantity: "", discount: "", price: "", description: "",
+    category: "Grocery", otherCategory: "", date: ""
   });
   const [csvData, setCSVData] = useState(null);
+  const { user } = useAuth();
   const navigate = useNavigate();
+
+  if (!user) return <p className="text-white p-6">Please login to add inventory.</p>;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -26,7 +23,7 @@ export default function AddInventory() {
   };
 
   const validateForm = () => {
-    if (!form.name || !form.price || !form.quantity || !form.date) {
+    if (!form.name || !form.quantity || !form.date || !form.price) {
       alert("❗ Name, price, quantity and date are required.");
       return false;
     }
@@ -37,44 +34,25 @@ export default function AddInventory() {
     return true;
   };
 
-  const calculateFinalPrice = (price, discount) => {
-    const p = parseFloat(price);
-    const d = parseFloat(discount);
-    if (!d || isNaN(d)) return p;
-    return +(p - (p * d) / 100).toFixed(2);
-  };
-
   const handleManualSubmit = (e) => {
     e.preventDefault();
     if (!validateForm()) return;
 
-    const finalPrice = calculateFinalPrice(form.price, form.discount);
-
     const product = {
       name: form.name,
       sku: form.sku?.trim() || undefined,
-      price: +form.price,
       quantity: +form.quantity,
       discount: form.discount ? +form.discount : 0,
-      finalPrice,
+      price: +form.price,
+      finalPrice: form.discount ? (+form.price * (1 - +form.discount / 100)).toFixed(2) : +form.price,
       category: form.category !== "Other" ? form.category : form.otherCategory.trim(),
-      date: form.date,
       description: form.description,
+      date: form.date,
     };
 
-    saveManualProduct(product);
+    saveManualProduct(user.uid, product);
     alert("✅ Product added");
-    setForm({
-      name: "",
-      sku: "",
-      price: "",
-      quantity: "",
-      discount: "",
-      category: "Grocery",
-      otherCategory: "",
-      date: "",
-      description: "",
-    });
+    setForm({ name: "", sku: "", quantity: "", discount: "", price: "", description: "", category: "Grocery", otherCategory: "", date: "" });
     navigate("/inventory");
   };
 
@@ -83,8 +61,7 @@ export default function AddInventory() {
     if (!file) return;
 
     Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
+      header: true, skipEmptyLines: true,
       complete: ({ data, meta }) => {
         const req = ["name", "quantity", "date", "category", "price"];
         for (let col of req) {
@@ -94,33 +71,27 @@ export default function AddInventory() {
           }
         }
 
-        const formatted = data.map((row) => {
-          const discount = row.discount ? +row.discount : 0;
-          const price = +row.price;
-          const finalPrice = calculateFinalPrice(price, discount);
-
-          return {
-            name: row.name,
-            sku: row.sku?.trim() || undefined,
-            quantity: +row.quantity,
-            price,
-            discount,
-            finalPrice,
-            category: CATEGORIES.slice(0, 4).includes(row.category) ? row.category : "Other",
-            date: row.date,
-            description: row.description || "",
-          };
-        });
+        const formatted = data.map((row) => ({
+          name: row.name,
+          sku: row.sku?.trim() || undefined,
+          quantity: +row.quantity,
+          price: +row.price,
+          discount: row.discount ? +row.discount : 0,
+          finalPrice: row.discount ? (+row.price * (1 - +row.discount / 100)).toFixed(2) : +row.price,
+          category: CATEGORIES.slice(0, 4).includes(row.category) ? row.category : "Other",
+          description: row.description,
+          date: row.date
+        }));
 
         setCSVData(formatted);
         alert("✅ CSV ready: click import to save");
       },
-      error: (err) => alert("❌ CSV error: " + err.message),
+      error: (err) => alert("❌ CSV error: " + err.message)
     });
   };
 
   const handleCSVSave = () => {
-    saveCSVProducts(csvData);
+    saveCSVProducts(user.uid, csvData);
     alert("✅ Products imported");
     setCSVData(null);
     navigate("/inventory");
@@ -128,74 +99,39 @@ export default function AddInventory() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
-      <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent mb-6">
-        ➕ Add Inventory
-      </h1>
+      <h1 className="text-3xl font-bold mb-6">➕ Add Inventory</h1>
 
-      <form onSubmit={handleManualSubmit} className="max-w-lg mx-auto bg-gray-800 p-6 rounded-lg shadow space-y-4">
+      <form onSubmit={handleManualSubmit} className="max-w-xl bg-gray-800 p-6 rounded-lg mx-auto space-y-4">
         {["name", "price", "quantity", "date"].map((k) => (
           <div key={k}>
             <label className="block mb-1 capitalize">{k}</label>
             <input
               name={k}
-              type={k === "date" ? "date" : k === "quantity" || k === "price" ? "number" : "text"}
+              type={k === "date" ? "date" : "text"}
               value={form[k]}
               onChange={handleChange}
-              className="w-full p-2 bg-gray-700 rounded border border-gray-600"
+              className="w-full p-2 bg-gray-700 rounded"
               required
             />
           </div>
         ))}
-
-        <div>
-          <label className="block mb-1">SKU (optional)</label>
-          <input name="sku" value={form.sku} onChange={handleChange}
-            className="w-full p-2 bg-gray-700 rounded border border-gray-600" />
-        </div>
-
-        <div>
-          <label className="block mb-1">Discount % (optional)</label>
-          <input name="discount" type="number" value={form.discount} onChange={handleChange}
-            className="w-full p-2 bg-gray-700 rounded border border-gray-600" />
-        </div>
-
-        <div>
-          <label className="block mb-1">Description (optional)</label>
-          <input name="description" value={form.description} onChange={handleChange}
-            className="w-full p-2 bg-gray-700 rounded border border-gray-600" />
-        </div>
-
-        <div>
-          <label className="block mb-1">Category *</label>
-          <select name="category" value={form.category} onChange={handleChange}
-            className="w-full p-2 bg-gray-700 rounded border border-gray-600">
-            {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-
+        <input name="sku" placeholder="SKU (optional)" value={form.sku} onChange={handleChange} className="w-full p-2 bg-gray-700 rounded" />
+        <input name="discount" type="number" placeholder="Discount % (optional)" value={form.discount} onChange={handleChange} className="w-full p-2 bg-gray-700 rounded" />
+        <textarea name="description" placeholder="Description (optional)" value={form.description} onChange={handleChange} className="w-full p-2 bg-gray-700 rounded" />
+        <select name="category" value={form.category} onChange={handleChange} className="w-full p-2 bg-gray-700 rounded">
+          {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
         {form.category === "Other" && (
-          <div>
-            <label className="block mb-1">Specify "Other"</label>
-            <input name="otherCategory" value={form.otherCategory} onChange={handleChange}
-              className="w-full p-2 bg-gray-700 rounded border border-gray-600" required />
-          </div>
+          <input name="otherCategory" placeholder="Specify category" value={form.otherCategory} onChange={handleChange} className="w-full p-2 bg-gray-700 rounded" />
         )}
-
-        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded">✅ Add Product</button>
+        <button type="submit" className="w-full bg-blue-600 py-2 rounded">Add Product</button>
       </form>
 
-      {/* CSV Upload Section */}
-      <div className="mt-12 max-w-lg mx-auto bg-gray-800 p-6 rounded-lg shadow space-y-4">
-        <h2 className="text-xl font-semibold">📄 Upload CSV</h2>
-        <p className="text-gray-400 text-sm">
-          Required: <strong>name, quantity, date, category, price</strong>. Optional: sku, discount, description.
-        </p>
-        <input type="file" accept=".csv" onChange={handleCSVUpload}
-          className="w-full p-2 bg-gray-700 rounded border border-gray-600" />
+      <div className="max-w-xl mt-10 mx-auto bg-gray-800 p-6 rounded-lg">
+        <h2 className="text-xl font-bold mb-3">📄 Upload CSV</h2>
+        <input type="file" accept=".csv" onChange={handleCSVUpload} className="w-full p-2 bg-gray-700 rounded" />
         {csvData && (
-          <button onClick={handleCSVSave} className="w-full bg-green-600 hover:bg-green-700 py-2 rounded">
-            ✅ Import CSV
-          </button>
+          <button onClick={handleCSVSave} className="w-full mt-4 bg-green-600 py-2 rounded">✅ Import CSV</button>
         )}
       </div>
     </div>

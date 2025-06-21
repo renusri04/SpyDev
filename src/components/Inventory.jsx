@@ -1,122 +1,50 @@
 import React, { useEffect, useState } from "react";
 import { getProducts } from "../utils/localStorage";
+import { useAuth } from "../contexts/authContext";
 
 export default function Inventory() {
+  const { user } = useAuth();
   const [products, setProducts] = useState([]);
-  const [sortField, setSortField] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
 
   useEffect(() => {
-    const storedProducts = getProducts();
-    setProducts(storedProducts);
-  }, []);
-
-  const deleteProduct = (indexToDelete) => {
-    const confirmDelete = window.confirm("Are you sure you want to delete this product?");
-    if (confirmDelete) {
-      const updated = products.filter((_, index) => index !== indexToDelete);
-      localStorage.setItem("products", JSON.stringify(updated));
-      setProducts(updated);
+    if (user?.uid) {
+      const storedProducts = getProducts(user.uid);
+      setProducts(storedProducts);
     }
-  };
+  }, [user]);
 
-  const sortProducts = (items) => {
-    return [...items].sort((a, b) => {
-      if (!sortField) return 0;
-      if (sortField === "name") return a.name.localeCompare(b.name);
-      if (sortField === "price") return a.price - b.price;
-      if (sortField === "finalPrice") return a.finalPrice - b.finalPrice;
-      if (sortField === "date") return new Date(a.date) - new Date(b.date);
-      if (sortField === "category") return a.category.localeCompare(b.category);
-      return 0;
-    });
-  };
-
-  const filteredProducts = products.filter((product) =>
-    categoryFilter ? product.category === categoryFilter : true
-  );
-
-  const sortedProducts = sortProducts(filteredProducts);
-  const uniqueCategories = [...new Set(products.map((p) => p.category))];
+  if (!user) return <p className="text-white p-6">Please login to view your inventory.</p>;
 
   return (
-    <div className="p-6 min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
-      <h1 className="text-4xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
-        🧾 Inventory List
-      </h1>
-
-      <div className="flex flex-wrap gap-4 mb-6">
-        <select
-          value={sortField}
-          onChange={(e) => setSortField(e.target.value)}
-          className="bg-gray-800 text-white px-4 py-2 rounded-md border border-gray-600 shadow"
-        >
-          <option value="">Sort By</option>
-          <option value="name">Name</option>
-          <option value="price">Original Price</option>
-          <option value="finalPrice">Discounted Price</option>
-          <option value="date">Date</option>
-          <option value="category">Category</option>
-        </select>
-
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="bg-gray-800 text-white px-4 py-2 rounded-md border border-gray-600 shadow"
-        >
-          <option value="">Filter by Category</option>
-          {uniqueCategories.map((cat) => (
-            <option key={cat} value={cat}>
-              {cat}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {sortedProducts.length === 0 ? (
-        <p className="text-gray-400">No products available.</p>
+    <div className="p-6 bg-gray-900 text-white min-h-screen">
+      <h1 className="text-3xl font-bold mb-6">📦 Your Inventory</h1>
+      {products.length === 0 ? (
+        <p>No items added yet.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-700 shadow-lg">
-          <table className="min-w-full text-sm text-left text-gray-200 bg-gray-900">
-            <thead className="text-xs uppercase bg-gray-800 text-gray-400">
-              <tr>
-                <th className="px-6 py-3">Name</th>
-                <th className="px-6 py-3">Category</th>
-                <th className="px-6 py-3">Price</th>
-                <th className="px-6 py-3">Discount %</th>
-                <th className="px-6 py-3">Final Price</th>
-                <th className="px-6 py-3">Quantity</th>
-                <th className="px-6 py-3">Date</th>
-                <th className="px-6 py-3">Description</th>
-                <th className="px-6 py-3 text-center">Action</th>
+        <table className="w-full bg-gray-800 rounded-lg overflow-hidden shadow-md">
+          <thead className="bg-gray-700 text-left text-sm uppercase text-gray-400">
+            <tr>
+              <th className="p-3">Name</th>
+              <th className="p-3">Price</th>
+              <th className="p-3">Final Price</th>
+              <th className="p-3">Qty</th>
+              <th className="p-3">Category</th>
+              <th className="p-3">Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {products.map((prod, i) => (
+              <tr key={i} className="border-b border-gray-700 hover:bg-gray-700">
+                <td className="p-3">{prod.name}</td>
+                <td className="p-3">₹{prod.price}</td>
+                <td className="p-3 text-green-400">₹{prod.finalPrice}</td>
+                <td className="p-3">{prod.quantity}</td>
+                <td className="p-3">{prod.category}</td>
+                <td className="p-3">{prod.date}</td>
               </tr>
-            </thead>
-            <tbody>
-              {sortedProducts.map((product, index) => (
-                <tr key={index} className="border-b border-gray-700 hover:bg-gray-800 transition">
-                  <td className="px-6 py-4">{product.name}</td>
-                  <td className="px-6 py-4">{product.category || "N/A"}</td>
-                  <td className="px-6 py-4">₹{product.price}</td>
-                  <td className="px-6 py-4">{product.discount ?? 0}%</td>
-                  <td className="px-6 py-4 font-medium text-green-400">
-                    ₹{product.finalPrice ?? product.price}
-                  </td>
-                  <td className="px-6 py-4">{product.quantity}</td>
-                  <td className="px-6 py-4">{product.date}</td>
-                  <td className="px-6 py-4">{product.description || "N/A"}</td>
-                  <td className="px-6 py-4 text-center">
-                    <button
-                      onClick={() => deleteProduct(index)}
-                      className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded-md text-white text-xs"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );

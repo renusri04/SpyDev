@@ -1,13 +1,13 @@
-export const saveManualProduct = (product) => {
-  const current = JSON.parse(localStorage.getItem("products")) || [];
-  localStorage.setItem("products", JSON.stringify([...current, product]));
+export const getProducts = (uid) => {
+  return JSON.parse(localStorage.getItem(`user_products_${uid}`)) || [];
 };
 
-export const saveCSVProducts = (products) => {
-  const current = JSON.parse(localStorage.getItem("products")) || [];
-  localStorage.setItem("products", JSON.stringify([...current, ...products]));
+export const saveManualProduct = (uid, product) => {
+  const current = getProducts(uid);
+  localStorage.setItem(`user_products_${uid}`, JSON.stringify([...current, product]));
 };
 
-export const getProducts = () => {
-  return JSON.parse(localStorage.getItem("products")) || [];
+export const saveCSVProducts = (uid, products) => {
+  const current = getProducts(uid);
+  localStorage.setItem(`user_products_${uid}`, JSON.stringify([...current, ...products]));
 };
