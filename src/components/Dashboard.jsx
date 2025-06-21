@@ -35,11 +35,21 @@ export default function Dashboard() {
   const top = [...products]
     .sort((a, b) => (b.quantity || 0) - (a.quantity || 0))
     .slice(0, 5);
-  const low = products.filter((p) => p.quantity < 5);
-  const over = products.filter((p) => p.quantity > 80);
-  const dead = products.filter(
-    (p) => Date.now() - new Date(p.date) > 30 * 24 * 60 * 60 * 1000
-  );
+  const low = products.filter(
+  (p) => p.initialStock && p.quantity / p.initialStock < 0.2
+);
+
+const over = products.filter(
+  (p) => p.initialStock && p.quantity / p.initialStock > 1.2
+);
+
+const dead = products.filter(
+  (p) =>
+    Date.now() - new Date(p.date) > 30 * 24 * 60 * 60 * 1000 &&
+    !(low.includes(p) || over.includes(p)) // mutually exclusive
+);
+
+
 
   const profit = products.reduce((sum, p) => {
     const cost = p.price * 0.7;
@@ -110,11 +120,26 @@ export default function Dashboard() {
         </div>
         <div className="bg-gray-800 p-6 rounded-2xl shadow-2xl space-y-4">
           <h2 className="text-xl font-bold mb-4">📣 Alerts</h2>
-          <ul className="space-y-2">
-            <li className="text-yellow-300">Low Stock: {low.length}</li>
-            <li className="text-green-300">Overstocked: {over.length}</li>
-            <li className="text-red-400">Dead Stock: {dead.length}</li>
-          </ul>
+         <ul className="space-y-2">
+  <li className="text-yellow-300">
+    Low Stock: {low.length}
+    {low.length > 0 && (
+      <span className="text-slate-300"> — {low.map(p => p.name).join(", ")}</span>
+    )}
+  </li>
+  <li className="text-green-300">
+    Overstocked: {over.length}
+    {over.length > 0 && (
+      <span className="text-slate-300"> — {over.map(p => p.name).join(", ")}</span>
+    )}
+  </li>
+  <li className="text-red-400">
+    Dead Stock: {dead.length}
+    {dead.length > 0 && (
+      <span className="text-slate-300"> — {dead.map(p => p.name).join(", ")}</span>
+    )}
+  </li>
+</ul>
         </div>
       </div>
 
